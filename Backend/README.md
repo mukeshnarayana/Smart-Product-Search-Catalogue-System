@@ -81,8 +81,8 @@ Edit `.env`:
 ```env
 PORT=3000
 NODE_ENV=development
-DATABASE_URL=postgresql://neondb_owner:npg_KL4bjetdPs6z@ep-ancient-cherry-b59ojfhc-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require
-TEST_DATABASE_URL=
+DATABASE_URL= postgresql://username:password@localhost:5432/catalogue_db
+TEST_DATABASE_URL= postgresql://username:password@localhost:5432/catalogue_test_db
 CORS_ORIGIN=*
 RATE_LIMIT_WINDOW_MS=60000
 RATE_LIMIT_MAX=100
