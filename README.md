@@ -1,6 +1,6 @@
 # E-Commerce Product Catalogue Backend with Advanced Search
 
-High-performance, production-grade backend service for an e-commerce product catalogue built with **Node.js**, **Express.js**, **PostgreSQL**, **Sequelize ORM**, and **Zod**.
+High-performance, production-grade backend service for an e-commerce product catalogue built with **Node.js**, **Express.js**, **Neon PostgreSQL (Serverless Postgres)**, **Sequelize ORM**, and **Zod**.
 
 Features an enterprise-grade search engine with **PostgreSQL GIN trigram indexing (`pg_trgm`)**, multi-token fuzzy search, literal wildcard escaping, relevance ranking, deterministic tie-breaking for stable pagination, in-memory filter caching, and comprehensive security protections.
 
@@ -12,7 +12,7 @@ Features an enterprise-grade search engine with **PostgreSQL GIN trigram indexin
 |---|---|---|
 | **Runtime** | Node.js (v20+) | High-throughput asynchronous event-driven runtime |
 | **Framework** | Express.js | Robust, modular HTTP application server |
-| **Database** | PostgreSQL | Relational database with advanced indexing and text search capabilities |
+| **Database** | **Neon PostgreSQL** | Cloud-native serverless PostgreSQL with SSL pooling, high availability, and native `pg_trgm` support |
 | **ORM** | Sequelize | Type-safe models, connection pooling, and SQL injection prevention |
 | **Text Search** | `pg_trgm` (GIN) | Sub-millisecond substring/fuzzy indexing across multi-column text |
 | **Validation** | Zod | Runtime type coercion, strict query parameter validation, and clear error reporting |
@@ -28,7 +28,7 @@ Features an enterprise-grade search engine with **PostgreSQL GIN trigram indexin
 Backend/
 ├── src/
 │   ├── config/
-│   │   ├── db.js                   # Sequelize connection pool & SSL configuration
+│   │   ├── db.js                   # Sequelize connection pool & Neon SSL configuration
 │   │   └── env.js                  # Environment variable schema & validation
 │   ├── models/
 │   │   ├── Product.js              # Product entity definition with CHECK constraints
@@ -66,16 +66,17 @@ Backend/
 
 ## Getting Started
 
-### 1. Prerequisites
+### 1. Database: Neon PostgreSQL
+This backend is built on and connected to **[Neon Serverless PostgreSQL](https://neon.tech/)**. Neon provides:
+- Auto-scaling serverless cloud compute.
+- Native support for extensions such as `pg_trgm`.
+- Built-in connection pooling (`-pooler` endpoints) with SSL encryption.
+- Zero local database installation required.
+
+### 2. Prerequisites
 - **Node.js** v20.x or higher
 - **npm** v10.x or higher
-- **PostgreSQL** instance with superuser or extension creation privileges (e.g. Neon, AWS RDS, or local PostgreSQL)
-
-### 2. Environment Configuration
-Copy the template and configure your connection string:
-```bash
-cp .env.example .env
-```
+- **Neon PostgreSQL** account & connection string (or local PostgreSQL instance)
 
 Edit `.env`:
 ```env
