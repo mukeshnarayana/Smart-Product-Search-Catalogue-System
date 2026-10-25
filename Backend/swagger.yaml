@@ -1,0 +1,467 @@
+openapi: 3.0.3
+info:
+  title: E-Commerce Product Catalogue & Advanced Search API
+  description: |
+    Production-grade RESTful API for an e-commerce product catalogue featuring:
+    - **PostgreSQL GIN Trigram (`pg_trgm`) Substring Search** across Name, Description, Brand, Category, and SKU
+    - **Multi-Token Query Parsing** (OR across columns, AND across tokens) with LIKE wildcard escaping (`%`, `_`, `\`)
+    - **Dynamic Relevance Ranking** (Exact SKU > Name Starts-With > Name Contains > Others)
+    - **Deterministic Tie-Breaking & Stable Pagination** (`id ASC` unique order guarantee)
+    - **In-Memory Filter Cache** (5-minute TTL for UI filter metadata)
+    - **Zod Input Validation, Security Hardening (Helmet, Rate Limit, CORS)**
+  version: 1.0.0
+  contact:
+    name: Backend Engineering Team
+servers:
+  - url: http://localhost:3000
+    description: Local Development Server
+
+tags:
+  - name: Products
+    description: Product search, filtering, and retrieval endpoints
+  - name: Filters
+    description: Catalogue aggregation metadata for UI controls
+  - name: Health
+    description: Service health & database connectivity monitoring
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Service Health Check
+      description: Returns service uptime, timestamp, and active PostgreSQL database connection state.
+      responses:
+        '200':
+          description: Service is healthy and database is connected
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  uptime:
+                    type: number
+                    example: 124.58
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: '2026-10-25T04:30:00.000Z'
+                  database:
+                    type: string
+                    example: connected
+        '503':
+          description: Service degraded or database disconnected
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: degraded
+                  database:
+                    type: string
+                    example: disconnected
+
+  /api/products:
+    get:
+      tags:
+        - Products
+      summary: Search & Filter Product Catalogue
+      description: |
+        Searches and filters products with multi-token keyword matching, facet filters,
+        sorting options, and deterministic server-side pagination.
+      parameters:
+        - name: q
+          in: query
+          description: Search keywords (whitespace-tokenized, case-insensitive, max 100 characters).
+          required: false
+          schema:
+            type: string
+            maxLength: 100
+          example: wireless mouse
+        - name: category
+          in: query
+          description: Single category or comma-separated list of categories.
+          required: false
+          schema:
+            type: string
+          example: Accessories,Gaming
+        - name: brand
+          in: query
+          description: Single brand or comma-separated list of brands.
+          required: false
+          schema:
+            type: string
+          example: Logitech,Corsair
+        - name: minPrice
+          in: query
+          description: Minimum price (must be >= 0).
+          required: false
+          schema:
+            type: number
+            minimum: 0
+          example: 20
+        - name: maxPrice
+          in: query
+          description: Maximum price (must be >= minPrice).
+          required: false
+          schema:
+            type: number
+            minimum: 0
+          example: 150
+        - name: minRating
+          in: query
+          description: Minimum product rating (between 0.0 and 5.0).
+          required: false
+          schema:
+            type: number
+            minimum: 0
+            maximum: 5
+          example: 4.5
+        - name: inStock
+          in: query
+          description: Filter by stock availability.
+          required: false
+          schema:
+            type: boolean
+          example: true
+        - name: sort
+          in: query
+          description: Sorting criteria. Every sort option guarantees deterministic tie-breaking via `id ASC`.
+          required: false
+          schema:
+            type: string
+            enum: [newest, price_asc, price_desc, rating_desc, name_asc]
+            default: newest
+          example: price_asc
+        - name: page
+          in: query
+          description: 1-indexed page number.
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          example: 1
+        - name: limit
+          in: query
+          description: Number of products per page (1 to 100).
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          example: 20
+        - name: requestId
+          in: query
+          description: Optional client tracking ID echoed in response meta for frontend race-condition prevention.
+          required: false
+          schema:
+            type: string
+            maxLength: 100
+          example: req-101
+      responses:
+        '200':
+          description: Successfully retrieved products and pagination metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductListResponse'
+        '400':
+          description: Query parameter validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/products/filters:
+    get:
+      tags:
+        - Filters
+      summary: Retrieve Catalogue Filter Options
+      description: Returns distinct categories, distinct brands, and global min/max price range for UI filter controls. Cached in-memory for 5 minutes.
+      responses:
+        '200':
+          description: Successfully retrieved filter metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/FilterAggregation'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/products/{id}:
+    get:
+      tags:
+        - Products
+      summary: Get Product By ID
+      description: Returns complete details of a single product including description.
+      parameters:
+        - name: id
+          in: path
+          description: Unique product UUID
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: 90629f69-16f7-4e09-a859-648bf0cd42f4
+      responses:
+        '200':
+          description: Product details found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/ProductDetail'
+        '404':
+          description: Product not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotFoundErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 90629f69-16f7-4e09-a859-648bf0cd42f4
+        sku:
+          type: string
+          example: TEST-0001
+        name:
+          type: string
+          example: Wireless Mouse Pro
+        brand:
+          type: string
+          example: Logitech
+        category:
+          type: string
+          example: Accessories
+        price:
+          type: number
+          format: float
+          example: 49.99
+        rating:
+          type: number
+          format: float
+          example: 4.8
+        in_stock:
+          type: boolean
+          example: true
+        stock_quantity:
+          type: integer
+          example: 75
+        image_url:
+          type: string
+          format: uri
+          example: https://picsum.photos/seed/TEST-0001/400/400
+        created_at:
+          type: string
+          format: date-time
+          example: '2024-01-10T10:00:00.000Z'
+
+    ProductDetail:
+      allOf:
+        - $ref: '#/components/schemas/Product'
+        - type: object
+          properties:
+            description:
+              type: string
+              example: Ergonomic wireless optical mouse with precision sensor and long-lasting rechargeable battery.
+            updated_at:
+              type: string
+              format: date-time
+              example: '2024-01-10T10:00:00.000Z'
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        total:
+          type: integer
+          example: 142
+        totalPages:
+          type: integer
+          example: 8
+        hasNext:
+          type: boolean
+          example: true
+        hasPrev:
+          type: boolean
+          example: false
+
+    AppliedFilters:
+      type: object
+      properties:
+        q:
+          type: string
+          nullable: true
+          example: wireless mouse
+        category:
+          type: array
+          items:
+            type: string
+          nullable: true
+          example: [Accessories]
+        brand:
+          type: array
+          items:
+            type: string
+          nullable: true
+          example: [Logitech]
+        minPrice:
+          type: number
+          nullable: true
+          example: 20
+        maxPrice:
+          type: number
+          nullable: true
+          example: 150
+        minRating:
+          type: number
+          nullable: true
+          example: 4.5
+        inStock:
+          type: boolean
+          nullable: true
+          example: true
+        sort:
+          type: string
+          example: price_asc
+
+    Meta:
+      type: object
+      properties:
+        requestId:
+          type: string
+          nullable: true
+          example: req-101
+        timestamp:
+          type: string
+          format: date-time
+          example: '2026-10-25T04:30:00.000Z'
+
+    ProductListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Product'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        appliedFilters:
+          $ref: '#/components/schemas/AppliedFilters'
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    FilterAggregation:
+      type: object
+      properties:
+        categories:
+          type: array
+          items:
+            type: string
+          example: [Accessories, Audio, Computers, Gaming, Smartphones, Wearables]
+        brands:
+          type: array
+          items:
+            type: string
+          example: [Anker, Apple, Asus, Bose, Corsair, Logitech, Sony]
+        priceRange:
+          type: object
+          properties:
+            min:
+              type: number
+              example: 6.91
+            max:
+              type: number
+              example: 4986.50
+
+    ValidationDetail:
+      type: object
+      properties:
+        field:
+          type: string
+          example: minPrice
+        message:
+          type: string
+          example: minPrice must be greater than or equal to 0
+
+    ValidationErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: VALIDATION_ERROR
+            message:
+              type: string
+              example: Invalid query parameters provided
+            details:
+              type: array
+              items:
+                $ref: '#/components/schemas/ValidationDetail'
+
+    NotFoundErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: PRODUCT_NOT_FOUND
+            message:
+              type: string
+              example: Product with id '90629f69-16f7-4e09-a859-648bf0cd42f4' not found
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: INTERNAL_SERVER_ERROR
+            message:
+              type: string
+              example: An unexpected internal server error occurred
