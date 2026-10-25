@@ -1,280 +1,443 @@
-# OmniStore — E-Commerce Product Catalogue with Advanced Search
+# E-Commerce Product Catalogue Backend with Advanced Search
 
-[![Node.js Version](https://img.shields.io/badge/Node.js-v20%2B-brightgreen.svg)](https://nodejs.org/)
-[![React Version](https://img.shields.io/badge/React-18-blue.svg)](https://react.dev/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16%2B%20(pg__trgm)-blue.svg)](https://www.postgresql.org/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-38B2AC.svg)](https://tailwindcss.com/)
-[![Swagger API Docs](https://img.shields.io/badge/Swagger-OpenAPI_3.0-85EA2D.svg)](http://localhost:3000/api-docs)
-[![Tests Passing](https://img.shields.io/badge/Tests-74%20Passed-success.svg)](#testing-suites)
+High-performance, production-grade backend service for an e-commerce product catalogue built with **Node.js**, **Express.js**, **PostgreSQL**, **Sequelize ORM**, and **Zod**.
 
-A production-grade, full-stack e-commerce product catalogue application engineered for **correctness, reliability, and sub-millisecond search performance**. 
-
-All search, multi-faceted filtering, sorting, and pagination happen **100% on the server** powered by **PostgreSQL GIN trigram indexes (`pg_trgm`)**. The **React 18 frontend** is synchronized directly with URL search parameters, featuring real-time debounced search, two-tier race-condition protection, and localized Indian Rupee (`₹`) pricing.
+Features an enterprise-grade search engine with **PostgreSQL GIN trigram indexing (`pg_trgm`)**, multi-token fuzzy search, literal wildcard escaping, relevance ranking, deterministic tie-breaking for stable pagination, in-memory filter caching, and comprehensive security protections.
 
 ---
 
-## Architecture Overview
+## Architecture & Technology Stack
 
-```
-                         Browser Client (React 18 + Vite)
-                                    │
-                                    │ (useSearchParams State Sync)
-                                    │ (Debounce 300ms + AbortController)
-                                    ▼
-                          Vite Proxy (:5173 -> :3000)
-                                    │
-                                    ▼
-                     Express Backend Application (:3000)
-  ┌─────────────────────────────────┴──────────────────────────────────┐
-  │                                                                    │
-  ▼                                                                    ▼
-Swagger UI Docs (:3000/api-docs)                    Zod Input Validation (productQuery.schema.js)
-                                                                       │
-                                                                       ▼
-                                                    Query Builder (productSearch.service.js)
-                                                    - Multi-token whitespace parsing
-                                                    - LIKE wildcard escaping (%, _, \)
-                                                    - Parameterized CASE relevance ranking
-                                                    - Deterministic tie-breaking (id ASC)
-                                                                       │
-                                                                       ▼
-                                                    PostgreSQL (Neon Cloud / pg_trgm)
-                                                    - GIN Trigram Indexes (Name, SKU, Brand...)
-                                                    - Composite Index (category, price)
-                                                    - B-Tree Indexes (Rating, In-Stock, Date)
-```
+| Component | Technology | Rationale |
+|---|---|---|
+| **Runtime** | Node.js (v20+) | High-throughput asynchronous event-driven runtime |
+| **Framework** | Express.js | Robust, modular HTTP application server |
+| **Database** | PostgreSQL | Relational database with advanced indexing and text search capabilities |
+| **ORM** | Sequelize | Type-safe models, connection pooling, and SQL injection prevention |
+| **Text Search** | `pg_trgm` (GIN) | Sub-millisecond substring/fuzzy indexing across multi-column text |
+| **Validation** | Zod | Runtime type coercion, strict query parameter validation, and clear error reporting |
+| **Testing** | Jest + Supertest | Automated integration and regression test suite |
+| **Security** | Helmet, CORS, Express-Rate-Limit | Enterprise protection against common web vulnerabilities and brute-force |
+| **Logging** | Morgan | Structured HTTP request observability |
 
 ---
 
-## Tech Stack
-
-### Backend
-- **Runtime & Framework**: Node.js, Express.js
-- **Database & ORM**: PostgreSQL (Neon Cloud DB), Sequelize ORM
-- **Text Search Engine**: `pg_trgm` extension with GIN trigram indexing (`gin_trgm_ops`)
-- **Validation**: Zod (strict coercion, boundary checking, and custom cross-field refinements)
-- **API Documentation**: OpenAPI 3.0 / Swagger UI (`swagger-ui-express`, `yamljs`)
-- **Testing**: Jest, Supertest
-- **Security & Observability**: Helmet, CORS, Express-Rate-Limit (100 req/min), Morgan
-
-### Frontend
-- **Framework & Build**: React 18, Vite
-- **Routing**: React Router v6 (`useSearchParams` synchronization)
-- **Styling**: Tailwind CSS, Lucide React icons
-- **Testing**: Vitest, React Testing Library, Mock Service Worker (MSW v2)
-- **Currency & Localization**: Indian Rupee (`₹` / `INR`) with Indian numbering system (`en-IN`)
-
----
-
-## Monorepo Project Structure
+## Directory Structure
 
 ```
-.
-├── Backend/
-│   ├── src/
-│   │   ├── config/             # Database connection pool & environment loader
-│   │   ├── models/             # Product Sequelize entity with CHECK constraints
-│   │   ├── routes/             # Express API routes
-│   │   ├── controllers/        # Request controllers
-│   │   ├── services/           # Query builder, ranking, tie-breaking & filter cache
-│   │   ├── validators/         # Zod schemas for query parameter validation
-│   │   ├── middleware/         # Error handler, 404 handler, schema validation
-│   │   ├── app.js              # Express app with Swagger UI and security middlewares
-│   │   └── server.js           # Server bootstrap and graceful shutdown
-│   ├── scripts/
-│   │   ├── migrate.js          # pg_trgm extension, table sync, GIN and B-Tree indexes
-│   │   └── seed.js             # 660+ deterministic products, fixtures, and tie clusters
-│   ├── tests/                  # 61 Jest test cases (search, validation, SQL injection)
-│   ├── swagger.yaml            # Complete OpenAPI 3.0 YAML specification
-│   ├── .env.example            # Backend environment template
-│   ├── .env                    # Active database connection string
-│   └── package.json
-│
-├── frontend/
-│   ├── src/
-│   │   ├── api/                # Products API client with AbortSignal support
-│   │   ├── hooks/              # useProductSearch, useSearchParamsState, useDebouncedValue
-│   │   ├── components/         # SearchBar, FilterPanel, ProductCard, Pagination, etc.
-│   │   ├── pages/              # CatalogPage main layout
-│   │   ├── utils/              # formatPrice (₹ INR), buildQuery
-│   │   ├── tests/              # 13 Vitest tests (debounce, race-conditions, UI states)
-│   │   ├── App.jsx             # Router root
-│   │   ├── main.jsx            # React 18 root
-│   │   └── index.css           # Tailwind directives & custom utilities
-│   ├── index.html              # HTML shell with Google Fonts Inter
-│   ├── vite.config.js          # Vite config with backend proxy and Vitest setup
-│   ├── tailwind.config.js      # Custom theme & brand color configuration
-│   └── package.json
-│
-├── .gitignore                  # Monorepo root gitignore
-└── README.md                   # Overall project documentation
+Backend/
+├── src/
+│   ├── config/
+│   │   ├── db.js                   # Sequelize connection pool & SSL configuration
+│   │   └── env.js                  # Environment variable schema & validation
+│   ├── models/
+│   │   ├── Product.js              # Product entity definition with CHECK constraints
+│   │   └── index.js                # Database & model exports
+│   ├── routes/
+│   │   └── products.routes.js      # REST API route declarations
+│   ├── controllers/
+│   │   └── products.controller.js  # Controller handlers for HTTP endpoints
+│   ├── services/
+│   │   └── productSearch.service.js# Query builder, relevance ranking, tie-breaking, caching
+│   ├── validators/
+│   │   └── productQuery.schema.js  # Zod validation schema for query parameters
+│   ├── middleware/
+│   │   ├── errorHandler.js         # Centralized error handler (no SQL/stack leakage)
+│   │   ├── notFound.js             # Standardized 404 handler
+│   │   └── validate.js             # Schema validation middleware
+│   ├── app.js                      # Express application setup
+│   └── server.js                   # Server bootstrap & graceful shutdown listeners
+├── scripts/
+│   ├── migrate.js                  # Extensions, table sync, check constraints, GIN & B-tree indexes
+│   └── seed.js                     # Deterministic generator (650+ items, fixtures, tie clusters)
+├── tests/
+│   ├── setup.js                    # Jest setup & database lifecycle hooks
+│   ├── search.test.js              # Full-text, multi-token, filters, sorting & pagination tests
+│   ├── validation.test.js          # Boundary checks, 400 validation error formatting tests
+│   └── injection.test.js           # SQL injection attacks & wildcard escaping tests
+├── .env.example                    # Environment template
+├── .env                            # Active environment configuration
+├── jest.config.js                  # Jest runner configuration
+├── package.json                    # Project metadata & npm scripts
+└── README.md                       # Comprehensive documentation
 ```
 
 ---
 
-## Quick Start Guide
+## Getting Started
 
 ### 1. Prerequisites
 - **Node.js** v20.x or higher
 - **npm** v10.x or higher
-- **PostgreSQL** instance with `pg_trgm` extension support (already configured via Neon connection string in `.env`)
+- **PostgreSQL** instance with superuser or extension creation privileges (e.g. Neon, AWS RDS, or local PostgreSQL)
 
----
-
-### 2. Backend Setup & Run
-
-Open a terminal in the root directory:
-
+### 2. Environment Configuration
+Copy the template and configure your connection string:
 ```bash
-# Navigate to Backend
-cd Backend
-
-# Install dependencies
-npm install
-
-# Run database migration (creates pg_trgm extension, tables, constraints & GIN indexes)
-npm run db:migrate
-
-# Seed 660+ realistic products (including known fixtures and tie clusters)
-npm run db:seed
-
-# Start backend server
-npm start
+cp .env.example .env
 ```
 
-The backend will start at **`http://localhost:3000`**.
-- **Interactive Swagger Docs**: [http://localhost:3000/api-docs](http://localhost:3000/api-docs)
-- **Health Check**: [http://localhost:3000/health](http://localhost:3000/health)
-- **Products API**: [http://localhost:3000/api/products](http://localhost:3000/api/products)
+Edit `.env`:
+```env
+PORT=3000
+NODE_ENV=development
+DATABASE_URL= postgresql://username:password@localhost:5432/catalogue_db
+TEST_DATABASE_URL= postgresql://username:password@localhost:5432/catalogue_test_db
+CORS_ORIGIN=*
+RATE_LIMIT_WINDOW_MS=60000
+RATE_LIMIT_MAX=100
+```
 
----
-
-### 3. Frontend Setup & Run
-
-Open a second terminal:
-
+### 3. Database Migration
+Run the migration script to enable PostgreSQL extensions, create the tables, apply CHECK constraints, and configure GIN trigram and B-Tree indexes:
 ```bash
-# Navigate to frontend
-cd frontend
+npm run db:migrate
+```
 
-# Install dependencies
-npm install
+### 4. Database Seeding
+Seed 650+ realistic and deterministic products (including known test fixtures and intentional tie-breaking clusters):
+```bash
+npm run db:seed
+```
 
-# Start Vite development server
+To wipe the database and reseed from scratch:
+```bash
+npm run db:reset
+```
+
+### 5. Running the Application
+Start in development mode with auto-reload:
+```bash
 npm run dev
 ```
 
-Open your browser at **`http://localhost:5173`**.
-Vite automatically proxies `/api` calls to the backend running at `http://localhost:3000`.
-
----
-
-## Core Technical Features
-
-### 1. Multi-Token Keyword Search & Literal Wildcard Escaping
-- Search queries are split by whitespace into tokens.
-- **Inside each token**: Matches across all 5 fields (`name`, `description`, `brand`, `category`, `sku`) with `OR`.
-- **Across tokens**: Combined with `AND`, ensuring multi-word queries like `"wireless mouse"` strictly require both words to exist across the product's attributes.
-- Wildcards (`%`, `_`, `\`) are escaped automatically so inputs like `"100%"` or `"_"` match literal characters.
-- Accelerated by **PostgreSQL GIN trigram indexes (`gin_trgm_ops`)** for sub-millisecond substring lookup.
-
-### 2. Dynamic Relevance Ranking
-When a user searches without selecting an explicit sort order, results are dynamically ranked using a parameterized SQL `CASE` expression:
-1. **Tier 1 (Highest)**: Exact SKU Match (`UPPER(sku) = UPPER(:q)`)
-2. **Tier 2**: Product Name starts with query (`name ILIKE :startsWith`)
-3. **Tier 3**: Product Name contains query (`name ILIKE :contains`)
-4. **Tier 4**: Brand, category, or description matches
-
-### 3. Stable Pagination & Deterministic Tie-Breaking
-Standard SQL orderings on non-unique fields (e.g. 35 products with identical price `₹99.99`) lead to non-deterministic row sequences, causing duplicate items on subsequent pages.
-- **Solution**: Every sort option strictly appends the primary key tiebreaker `id ASC` (`ORDER BY price ASC, id ASC`).
-- Guarantees zero duplicate products across pages and zero missing items.
-
-### 4. Two-Tier Outdated Response Protection (Frontend)
-Prevents slow earlier network responses from overwriting faster newer responses during rapid typing:
-1. **Tier 1 — `AbortController`**: Aborts active in-flight fetch requests when parameters change.
-2. **Tier 2 — Monotonic `requestId` Counter**: Increments a numeric counter with each request; discards responses that do not match the latest request ID (defense-in-depth).
-
-### 5. Client Pre-Flight Validation
-- Real-time client-side validation detects negative prices or inverted boundaries (`minPrice > maxPrice`).
-- Displays inline accessible alerts (`role="alert"`) and suspends API calls until corrected.
-
----
-
-## API Reference Summary
-
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/health` | Server uptime and database connectivity check |
-| `GET` | `/api-docs` | Interactive Swagger UI API documentation |
-| `GET` | `/api-docs.yaml` | Raw OpenAPI 3.0 YAML specification |
-| `GET` | `/api/products` | Multi-token search, facet filtering, sorting, and pagination |
-| `GET` | `/api/products/filters` | Distinct categories, brands, and price range (cached 5 min) |
-| `GET` | `/api/products/:id` | Full product details by UUID |
-
-### `GET /api/products` Query Parameters:
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `q` | `string` | — | Search keyword (max 100 characters) |
-| `category` | `string` | — | Single or comma-separated list of categories |
-| `brand` | `string` | — | Single or comma-separated list of brands |
-| `minPrice` | `number` | — | Minimum price (inclusive, >= 0) |
-| `maxPrice` | `number` | — | Maximum price (inclusive, >= minPrice) |
-| `minRating` | `number` | — | Minimum rating (0.0 to 5.0) |
-| `inStock` | `boolean` | — | Filter by in-stock status (`true` / `false`) |
-| `sort` | `enum` | `newest` | `newest`, `price_asc`, `price_desc`, `rating_desc`, `name_asc` |
-| `page` | `integer` | `1` | 1-indexed page number |
-| `limit` | `integer` | `20` | Page size (1 to 100) |
-| `requestId` | `string` | — | Optional client tracking ID (echoed back in meta) |
-
----
-
-## Testing Suites
-
-The project features a total of **74 automated test cases**:
-
-### Backend Tests (61 Jest Tests)
+Or start standard production process:
 ```bash
-cd Backend
+npm start
+```
+
+### 6. Running Automated Tests
+Run the complete automated test suite (61 tests covering search, validation, SQL injection prevention, and stable pagination):
+```bash
 npm test
 ```
-- **`search.test.js`**: Partial/full name matching, brand, category, exact SKU, case-insensitivity (`WIRELESS`/`wireless`), multi-token queries, combined filters, sort options, stable pagination with ties, clamping, in-memory cache, and index execution.
-- **`validation.test.js`**: Boundary validation, negative price rejection, cross-field checks (`minPrice > maxPrice`), rating bounds (0–5), page/limit boundaries, and 404 handlers.
-- **`injection.test.js`**: SQL injection attack defense (`' OR '1'='1`, `DROP TABLE`, `pg_sleep`) and literal escaping of `%`, `_`, and `\`.
 
-### Frontend Tests (13 Vitest Tests)
+---
+
+## Indexing & Performance Strategy
+
+### 1. PostgreSQL GIN Trigram (`pg_trgm`) Indexes
+Standard B-Tree indexes only accelerate prefix queries (`name LIKE 'wire%'`) and cannot utilize indexes on substring matches (`name LIKE '%wire%'`) or multi-column keyword searches. 
+
+We enable the PostgreSQL `pg_trgm` extension and create Generalized Inverted Index (GIN) trigram indexes:
+```sql
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+CREATE INDEX idx_products_name_trgm ON products USING gin (name gin_trgm_ops);
+CREATE INDEX idx_products_description_trgm ON products USING gin (description gin_trgm_ops);
+CREATE INDEX idx_products_brand_trgm ON products USING gin (brand gin_trgm_ops);
+CREATE INDEX idx_products_category_trgm ON products USING gin (category gin_trgm_ops);
+CREATE INDEX idx_products_sku_trgm ON products USING gin (sku gin_trgm_ops);
+```
+- **Why `gin_trgm_ops`?** Trigrams break strings into 3-character slices. A GIN index maps trigrams directly to row pointers, enabling PostgreSQL to execute sub-millisecond index scans on arbitrary substring searches with `ILIKE %token%`.
+- **Case-Insensitivity**: In PostgreSQL, `gin_trgm_ops` natively accelerates `ILIKE` without requiring `lower()` expression wrapping.
+
+### 2. B-Tree Indexes for Filtering & Sorting
+High-cardinality filters and sort columns are indexed with standard B-Trees:
+- `idx_products_category ON products (category)`
+- `idx_products_brand ON products (brand)`
+- `idx_products_price ON products (price)`
+- `idx_products_rating ON products (rating)`
+- `idx_products_created_at ON products (created_at)`
+- `idx_products_in_stock ON products (in_stock)`
+
+### 3. Composite Index for Filter + Sort
+For the most common e-commerce pattern (browsing a category sorted by price):
+```sql
+CREATE INDEX idx_products_category_price ON products (category, price);
+```
+Allows PostgreSQL to satisfy category filtering and price ordering in a single index scan without an expensive external disk/memory sort pass.
+
+---
+
+## Search Engine & Query Builder Design
+
+All query generation is centralized in [`src/services/productSearch.service.js`](file:///c:/Users/mukes/OneDrive/Desktop/assignments/e-commerce%20product%20catalogue/Backend/src/services/productSearch.service.js).
+
+### 1. Multi-Token Search
+- User query `q` is split on whitespace into distinct tokens: `q.trim().split(/\s+/).filter(Boolean)`.
+- **Within a token**: An `OR` condition checks across `name`, `description`, `brand`, `category`, and `sku`.
+- **Across tokens**: All token conditions combine with `AND`.
+- Result: Searching `"wireless mouse"` strictly matches products containing *both* "wireless" and "mouse", regardless of which attribute fields contain them.
+
+### 2. Wildcard Escaping & SQL Injection Safety
+User inputs containing SQL wildcards (`%`, `_`, `\`) are escaped so they match literal characters:
+```javascript
+function escapeLikeWildcards(str) {
+  return str.replace(/[\\%_]/g, '\\$&');
+}
+```
+- Querying `100%` matches `"100% Mechanical Gaming Keyboard"` without `%` matching all characters.
+- Querying `_` matches `"Ultra_Speed USB-C Hub"` without `_` acting as a single-character wildcard.
+- Search patterns are passed to Sequelize `Op.iLike` as bound parameters (`$1`, `$2`), never through string concatenation.
+
+### 3. Relevance Ranking
+When keyword `q` is supplied and no explicit sort is chosen by the client, results are ranked dynamically using a parameterized `CASE` expression:
+1. Exact SKU match (`UPPER(sku) = UPPER(:exactQ)`) $\rightarrow$ Rank 1
+2. Name starts with (`name ILIKE :startsWithQ`) $\rightarrow$ Rank 2
+3. Name contains (`name ILIKE :containsQ`) $\rightarrow$ Rank 3
+4. Other matches $\rightarrow$ Rank 4
+Followed by `created_at DESC` and the unique `id ASC` tiebreaker.
+
+### 4. Deterministic Tie-Breaking (Stable Pagination)
+Without a unique tiebreaker, SQL database engines do not guarantee a deterministic row order when sorting by non-unique fields (e.g. 50 products priced at $99.99). This causes duplicate rows across pages and missing items.
+
+Every sort order in this application is strictly guaranteed a total deterministic ordering by appending the primary key tiebreaker:
+- `price_asc`: `ORDER BY price ASC, id ASC`
+- `price_desc`: `ORDER BY price DESC, id ASC`
+- `rating_desc`: `ORDER BY rating DESC, id ASC`
+- `newest`: `ORDER BY created_at DESC, id ASC`
+- `name_asc`: `ORDER BY lower(name) ASC, id ASC`
+
+### 5. Clamped Pagination & Parallel Execution
+- `Product.count()` and `Product.findAll()` are executed simultaneously via `Promise.all` using the identical `where` clause.
+- If a client requests `page > totalPages`, the API gracefully clamps the response: returning HTTP 200 with `data: []` and accurate pagination metadata (instead of throwing an error).
+
+### 6. Filter Cache
+`GET /api/products/filters` computes distinct categories, distinct brands, and global min/max price. Results are cached in-memory with a 5-minute TTL to prevent redundant table scans.
+
+---
+
+## API Reference & Examples
+
+### Base URL: `http://localhost:3000`
+
+---
+
+### 1. Health Check
+Checks server uptime and database connectivity.
+
+- **Endpoint**: `GET /health`
+- **Curl**:
+  ```bash
+  curl -X GET http://localhost:3000/health
+  ```
+- **Response** (`200 OK`):
+  ```json
+  {
+    "status": "ok",
+    "uptime": 45.2,
+    "timestamp": "2026-10-25T04:10:00.000Z",
+    "database": "connected"
+  }
+  ```
+
+---
+
+### 2. Search & Filter Products
+Search products with multi-token keyword search, facet filters, sorting, and pagination.
+
+- **Endpoint**: `GET /api/products`
+- **Query Parameters**:
+  | Param | Type | Default | Description |
+  |---|---|---|---|
+  | `q` | `string` | — | Search query (trimmed, max 100 characters) |
+  | `category` | `string` | — | Single category or comma-separated list (`Accessories,Gaming`) |
+  | `brand` | `string` | — | Single brand or comma-separated list (`Logitech,Corsair`) |
+  | `minPrice` | `number` | — | Minimum price (inclusive, >= 0) |
+  | `maxPrice` | `number` | — | Maximum price (inclusive, >= minPrice) |
+  | `minRating` | `number` | — | Minimum rating (0.0 to 5.0) |
+  | `inStock` | `boolean` | — | Stock status (`true` or `false`) |
+  | `sort` | `enum` | `newest` | `price_asc`, `price_desc`, `rating_desc`, `newest`, `name_asc` |
+  | `page` | `integer` | `1` | Page number (>= 1) |
+  | `limit` | `integer` | `20` | Items per page (1 to 100) |
+
+- **Curl Example (Keyword Search)**:
+  ```bash
+  curl -X GET "http://localhost:3000/api/products?q=wireless+mouse"
+  ```
+
+- **Curl Example (Multi-Filter & Sort)**:
+  ```bash
+  curl -X GET "http://localhost:3000/api/products?category=Accessories,Gaming&minPrice=20&maxPrice=150&minRating=4.0&inStock=true&sort=price_asc&page=1&limit=10"
+  ```
+
+- **Response** (`200 OK`):
+  ```json
+  {
+    "data": [
+      {
+        "id": "90629f69-16f7-4e09-a859-648bf0cd42f4",
+        "sku": "TEST-0001",
+        "name": "Wireless Mouse Pro",
+        "brand": "Logitech",
+        "category": "Accessories",
+        "price": 49.99,
+        "rating": 4.8,
+        "in_stock": true,
+        "stock_quantity": 75,
+        "image_url": "https://picsum.photos/seed/TEST-0001/400/400",
+        "created_at": "2024-01-10T10:00:00.000Z"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 10,
+      "total": 1,
+      "totalPages": 1,
+      "hasNext": false,
+      "hasPrev": false
+    },
+    "appliedFilters": {
+      "q": "wireless mouse",
+      "category": ["Accessories", "Gaming"],
+      "brand": null,
+      "minPrice": 20,
+      "maxPrice": 150,
+      "minRating": 4.0,
+      "inStock": true,
+      "sort": "price_asc"
+    }
+  }
+  ```
+
+---
+
+### 3. Filter Options Aggregation
+Returns distinct categories, brands, and global min/max price for populating user interface filters. Caches in memory for 5 minutes.
+
+- **Endpoint**: `GET /api/products/filters`
+- **Curl**:
+  ```bash
+  curl -X GET http://localhost:3000/api/products/filters
+  ```
+- **Response** (`200 OK`):
+  ```json
+  {
+    "data": {
+      "categories": [
+        "Accessories",
+        "Audio",
+        "Cameras",
+        "Computers",
+        "Electronics",
+        "Gaming",
+        "Home Appliances",
+        "Networking",
+        "Office Electronics",
+        "Smart Home",
+        "Smartphones",
+        "Wearables"
+      ],
+      "brands": [
+        "Anker",
+        "Apple",
+        "Asus",
+        "Bose",
+        "Corsair",
+        "Logitech",
+        "O'Reilly & Sons",
+        "Sony"
+      ],
+      "priceRange": {
+        "min": 6.91,
+        "max": 4986.5
+      }
+    }
+  }
+  ```
+
+---
+
+### 4. Get Product By ID
+Retrieves full product details including complete description.
+
+- **Endpoint**: `GET /api/products/:id`
+- **Curl**:
+  ```bash
+  curl -X GET http://localhost:3000/api/products/90629f69-16f7-4e09-a859-648bf0cd42f4
+  ```
+- **Response** (`200 OK`):
+  ```json
+  {
+    "data": {
+      "id": "90629f69-16f7-4e09-a859-648bf0cd42f4",
+      "sku": "TEST-0001",
+      "name": "Wireless Mouse Pro",
+      "description": "Ergonomic wireless optical mouse with ultra precision sensor and rechargeable battery.",
+      "brand": "Logitech",
+      "category": "Accessories",
+      "price": 49.99,
+      "rating": 4.8,
+      "in_stock": true,
+      "stock_quantity": 75,
+      "image_url": "https://picsum.photos/seed/TEST-0001/400/400",
+      "created_at": "2024-01-10T10:00:00.000Z",
+      "updated_at": "2024-01-10T10:00:00.000Z"
+    }
+  }
+  ```
+- **Product Not Found Response** (`404 Not Found`):
+  ```json
+  {
+    "error": {
+      "code": "PRODUCT_NOT_FOUND",
+      "message": "Product with id '00000000-0000-0000-0000-000000000000' not found"
+    }
+  }
+  ```
+
+---
+
+### 5. Error & Validation Format
+Invalid parameters reject with HTTP 400 and detailed field-level issues:
+
+- **Curl Example**:
+  ```bash
+  curl -X GET "http://localhost:3000/api/products?minPrice=100&maxPrice=50&minRating=7"
+  ```
+- **Response** (`400 Bad Request`):
+  ```json
+  {
+    "error": {
+      "code": "VALIDATION_ERROR",
+      "message": "Invalid query parameters provided",
+      "details": [
+        {
+          "field": "minRating",
+          "message": "minRating must be less than or equal to 5"
+        },
+        {
+          "field": "minPrice",
+          "message": "minPrice cannot be greater than maxPrice"
+        },
+        {
+          "field": "maxPrice",
+          "message": "maxPrice must be greater than or equal to minPrice"
+        }
+      ]
+    }
+  }
+  ```
+
+---
+
+## Security Hardening
+1. **SQL Injection**: All input parameters are strictly bound into parameterized SQL statements via Sequelize. No string concatenation is used in queries. Unsafe inputs like `'; DROP TABLE products;--` are treated as literal text.
+2. **Strict Validation**: Zod coerces and sanitizes incoming types. Non-numeric values for numeric filters fail before database execution.
+3. **HTTP Rate Limiting**: Defaults to 100 requests per 1 minute window per client IP.
+4. **Helmet & CORS**: Sets modern HTTP security headers (`Content-Security-Policy`, `X-Frame-Options`, `X-Content-Type-Options`, HSTS) and limits cross-origin access.
+5. **Safe Error Handling**: Never leaks database column names, raw queries, or stack traces in responses.
+
+---
+
+## Testing Verification
+The test suite consists of 61 comprehensive automated tests across three suites:
+1. `tests/search.test.js`: Validates partial/full name match, brand, category, SKU, case-insensitivity, multi-token AND/OR queries, filter intersections, sorting, stable pagination with ties, clamping, in-memory cache, and index execution.
+2. `tests/validation.test.js`: Validates price bounds, cross-field price consistency, ratings (0-5), sort enum values, pagination limits, 404 route handling, and error shapes.
+3. `tests/injection.test.js`: Stresses the query builder against SQL injection payloads (`' OR '1'='1`, `DROP TABLE`, `pg_sleep`) across all parameters and verifies literal treatment of `%`, `_`, and `\`.
+
+Run tests anytime with:
 ```bash
-cd frontend
 npm test
 ```
-- **`debounce.test.jsx`**: Verifies rapid typing triggers only 1 request after 300ms, Enter immediate trigger, and Escape key clear.
-- **`outdatedResponses.test.jsx`**: Verifies race-condition defense (mock slow request A vs fast request B) and request abort signal cancellation.
-- **`searchAndFilters.test.jsx`**: URL parameter hydration on load, filter changes resetting page to 1, page change preserving filters, clear-all-filters, pre-flight price validation, and pagination boundaries.
-- **`uiStates.test.jsx`**: Skeleton cards loading state, empty state suggestions, and error state with retry.
-
----
-
-## Environment Variables
-
-### Backend (`Backend/.env`)
-| Variable | Default | Description |
-|---|---|---|
-| `PORT` | `3000` | HTTP port for Express server |
-| `NODE_ENV` | `development` | Runtime environment (`development`, `production`, `test`) |
-| `DATABASE_URL` | — | PostgreSQL connection URI with SSL mode |
-| `TEST_DATABASE_URL` | — | Optional separate test database connection URI |
-| `CORS_ORIGIN` | `*` | Allowed CORS origins |
-| `RATE_LIMIT_WINDOW_MS` | `60000` | Rate limiting window in milliseconds |
-| `RATE_LIMIT_MAX` | `100` | Maximum requests per IP per window |
-
-### Frontend (`frontend/.env`)
-| Variable | Default | Description |
-|---|---|---|
-| `VITE_API_URL` | `http://localhost:3000` | Target backend URL for API proxying |
-
----
-
-## License
-MIT License. Open for educational and commercial catalogue implementation.
-#   S m a r t - P r o d u c t - S e a r c h - C a t a l o g u e - S y s t e m  
- 
