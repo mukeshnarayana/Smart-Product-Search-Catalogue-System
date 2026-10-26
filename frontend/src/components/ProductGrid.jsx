@@ -7,6 +7,7 @@ export function ProductGrid({
   isLoading = false,
   isInitialLoading = false,
   searchQuery = '',
+  onSelectProduct,
 }) {
   if (isInitialLoading) {
     return <LoadingSkeleton count={8} />;
@@ -33,6 +34,7 @@ export function ProductGrid({
             key={product.id}
             product={product}
             searchQuery={searchQuery}
+            onSelectProduct={onSelectProduct}
           />
         ))}
       </div>

@@ -10,7 +10,30 @@ export class ApiError extends Error {
   }
 }
 
-const API_BASE = '/api/products';
+// Live Render Backend Base URL
+export const LIVE_BACKEND_URL = 'https://smart-product-search-catalogue-system-jrr2.onrender.com';
+
+/**
+ * Resolves the backend base URL:
+ * - Test mode (Vitest): defaults to '' (relative) for mock handlers (MSW)
+ * - Environment variable VITE_API_BASE_URL: allows custom override
+ * - Default runtime: points directly to the live Render backend
+ */
+export function getApiBaseUrl() {
+  if (typeof import.meta !== 'undefined' && import.meta.env) {
+    if (import.meta.env.MODE === 'test') {
+      return import.meta.env.VITE_API_TEST_BASE_URL || '';
+    }
+    if (import.meta.env.VITE_API_BASE_URL !== undefined && import.meta.env.VITE_API_BASE_URL !== null) {
+      return import.meta.env.VITE_API_BASE_URL;
+    }
+  }
+  return LIVE_BACKEND_URL;
+}
+
+export const BASE_URL = getApiBaseUrl().replace(/\/+$/, '');
+export const API_BASE = `${BASE_URL}/api/products`;
+
 
 /**
  * Fetches products from the backend REST API with AbortSignal support.
@@ -132,3 +155,27 @@ export async function fetchProductById(id, signal = undefined) {
   const result = await response.json();
   return result.data || result;
 }
+
+/**
+ * Checks the live backend service health status.
+ * @param {AbortSignal} [signal]
+ * @returns {Promise<{status: string, uptime: number, timestamp: string, database: string}>}
+ */
+export async function fetchBackendHealth(signal = undefined) {
+  const url = `${BASE_URL}/health`;
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+    },
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new ApiError(`Health check failed with status ${response.status}`, response.status);
+  }
+
+  return response.json();
+}
+

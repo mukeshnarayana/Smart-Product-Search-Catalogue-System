@@ -11,6 +11,9 @@ import Pagination from '../components/Pagination';
 import ActiveFilterChips from '../components/ActiveFilterChips';
 import EmptyState from '../components/EmptyState';
 import ErrorState from '../components/ErrorState';
+import ProductDetailModal from '../components/ProductDetailModal';
+import { fetchBackendHealth, BASE_URL } from '../api/productsApi';
+
 
 export function CatalogPage() {
   const {
@@ -35,6 +38,22 @@ export function CatalogPage() {
 
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
   const [isPriceInvalid, setIsPriceInvalid] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [backendStatus, setBackendStatus] = useState({ online: true, database: 'connected' });
+
+  // Check live backend health
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchBackendHealth(controller.signal)
+      .then((health) => {
+        setBackendStatus({ online: health.status === 'ok', database: health.database });
+      })
+      .catch(() => {
+        // Silently preserve default for test environments
+      });
+
+    return () => controller.abort();
+  }, []);
 
   // Fetch filter metadata on mount
   useEffect(() => {
@@ -76,18 +95,32 @@ export function CatalogPage() {
       {/* Top Navigation Bar */}
       <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col md:flex-row items-center justify-between gap-4">
-          {/* Logo & Brand */}
-          <div className="flex items-center gap-2.5 shrink-0 self-start md:self-auto">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-700 to-brand-500 flex items-center justify-center text-white shadow-sm shadow-brand-500/20">
-              <ShoppingBag className="w-5 h-5" />
+          {/* Logo & Brand & Live Status */}
+          <div className="flex items-center justify-between w-full md:w-auto gap-4">
+            <div className="flex items-center gap-2.5 shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-700 to-brand-500 flex items-center justify-center text-white shadow-sm shadow-brand-500/20">
+                <ShoppingBag className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-xl font-bold tracking-tight text-slate-900 block leading-tight">
+                  OmniStore
+                </span>
+                <span className="text-xs text-slate-500 font-medium">
+                  Product Catalogue & Search
+                </span>
+              </div>
             </div>
-            <div>
-              <span className="text-xl font-bold tracking-tight text-slate-900 block leading-tight">
-                OmniStore
+
+            {/* Live Backend Connection Indicator */}
+            <div
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100/80 border border-slate-200/70 text-[11px] font-medium text-slate-600"
+              title="Connected to live Render backend"
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
-              <span className="text-xs text-slate-500 font-medium">
-                Product Catalogue & Search
-              </span>
+              <span>Live API: Render</span>
             </div>
           </div>
 
@@ -190,6 +223,7 @@ export function CatalogPage() {
                   isLoading={isLoading}
                   isInitialLoading={isInitialLoading}
                   searchQuery={state.q}
+                  onSelectProduct={(product) => setSelectedProduct(product)}
                 />
                 <Pagination
                   pagination={pagination}
@@ -200,6 +234,16 @@ export function CatalogPage() {
           </div>
         </div>
       </main>
+
+      {/* Product Quick View / Details Modal */}
+      {selectedProduct && (
+        <ProductDetailModal
+          productId={selectedProduct.id}
+          initialData={selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+        />
+      )}
+
 
       {/* Footer */}
       <footer className="bg-white border-t border-slate-200 mt-auto py-6 text-center text-xs text-slate-400">

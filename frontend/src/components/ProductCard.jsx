@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Star, CheckCircle2, XCircle } from 'lucide-react';
+import { Star, CheckCircle2, XCircle, Eye } from 'lucide-react';
 import { formatPrice } from '../utils/formatPrice';
 
 /**
@@ -34,7 +34,7 @@ function HighlightedText({ text, query }) {
   );
 }
 
-export function ProductCard({ product, searchQuery = '' }) {
+export function ProductCard({ product, searchQuery = '', onSelectProduct }) {
   const [imageError, setImageError] = useState(false);
 
   const fallbackImage = `https://placehold.co/400x400/e2e8f0/475569?text=${encodeURIComponent(
@@ -42,7 +42,10 @@ export function ProductCard({ product, searchQuery = '' }) {
   )}`;
 
   return (
-    <article className="group bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-xs hover:shadow-lg hover:border-slate-300 transition-all duration-200 flex flex-col h-full">
+    <article
+      onClick={() => onSelectProduct?.(product)}
+      className="group bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-xs hover:shadow-lg hover:border-slate-300 transition-all duration-200 flex flex-col h-full cursor-pointer focus-within:ring-2 focus-within:ring-brand-500"
+    >
       {/* Product Image Container */}
       <div className="relative aspect-square w-full bg-slate-100 overflow-hidden">
         <img
@@ -52,6 +55,21 @@ export function ProductCard({ product, searchQuery = '' }) {
           onError={() => setImageError(true)}
           className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300"
         />
+
+        {/* Quick View Floating Action */}
+        <div className="absolute inset-x-0 bottom-3 flex justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 px-4">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelectProduct?.(product);
+            }}
+            className="w-full py-2 px-3 rounded-xl bg-white/95 backdrop-blur-md text-slate-800 text-xs font-semibold shadow-md hover:bg-white flex items-center justify-center gap-1.5 transition-colors"
+          >
+            <Eye className="w-3.5 h-3.5 text-brand-600" />
+            <span>Quick View</span>
+          </button>
+        </div>
 
         {/* Stock Badge */}
         <div className="absolute top-3 left-3">

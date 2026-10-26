@@ -138,4 +138,26 @@ export const handlers = [
       },
     });
   }),
+
+  // GET /health
+  http.get('/health', () => {
+    return HttpResponse.json({
+      status: 'ok',
+      uptime: 120,
+      timestamp: new Date().toISOString(),
+      database: 'connected',
+    });
+  }),
+
+  // GET /api/products/:id
+  http.get('/api/products/:id', ({ params }) => {
+    const product = mockProducts.find((p) => p.id === params.id) || mockProducts[0];
+    return HttpResponse.json({
+      data: {
+        ...product,
+        description: 'Mock product description for testing',
+      },
+    });
+  }),
 ];
+
